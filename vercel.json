@@ -1,0 +1,10 @@
+{
+  "buildCommand": "cd gwt-app && npm install && npm run build",
+  "outputDirectory": "gwt-app/dist",
+  "functions": {
+    "api/synthesize.js": {
+      "memory": 512,
+      "maxDuration": 30
+    }
+  }
+}
