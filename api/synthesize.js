@@ -34,7 +34,18 @@ worse than equivalent deterioration in regulatory capacity because it resists re
 
 export default async function handler(req, res) {
   // CORS
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  const allowedOrigins = [
+  'https://systemsofthought.com',
+  'https://www.systemsofthought.com',
+  'https://jediwright.com',
+  'https://www.jediwright.com',
+  'https://governance-tracker-eight.vercel.app'
+];
+
+const origin = req.headers.origin;
+if (allowedOrigins.includes(origin)) {
+  res.setHeader('Access-Control-Allow-Origin', origin);
+}
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
