@@ -30,7 +30,7 @@ export function HeritageNote() {
             architectural convictions, twenty years later.
           </blockquote>
 
-          <div className="mt-4 grid grid-cols-2 gap-4 text-xs text-gray-400">
+          <div className="mt-4 flex flex-col gap-4 text-xs text-gray-400">
             <div>
               <div className="font-semibold text-gray-500 mb-1 font-mono">mod_infinity.c → permissions.ts</div>
               <table className="w-full border-collapse">
@@ -43,8 +43,8 @@ export function HeritageNote() {
                     ['share_permissions JOIN', 'Credential check'],
                   ].map(([src, dst]) => (
                     <tr key={src} className="border-b border-gray-100 last:border-0">
-                      <td className="py-1 pr-2 font-mono text-gray-400">{src}</td>
-                      <td className="py-1 text-gray-500">→ {dst}</td>
+                      <td className="py-1 pr-4 font-mono text-gray-400 w-1/2">{src}</td>
+                      <td className="py-1 text-gray-500 w-1/2">→ {dst}</td>
                     </tr>
                   ))}
                 </tbody>
