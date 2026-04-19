@@ -43,7 +43,7 @@ export function PermissionPanel({ currentTier, onTierChange, assessmentLocked, o
         </button>
       </div>
 
-      <div className="grid grid-cols-3 gap-3 mb-4">
+      <div className="grid grid-cols-1 gap-3 mb-4">
         {(Object.values(TIERS) as typeof TIERS[keyof typeof TIERS][]).map(tier => (
           <button
             key={tier.name}

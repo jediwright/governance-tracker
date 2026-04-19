@@ -188,7 +188,7 @@ export function DomainBoard({ accessCtx }: Props) {
 
   return (
     <section aria-label="Five Domain Signal Board">
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex flex-col gap-2 mb-3">
         <h2 className="text-sm font-semibold text-[#081225] tracking-wide uppercase font-serif">
           Five Domain Signal Board
         </h2>
@@ -206,7 +206,7 @@ export function DomainBoard({ accessCtx }: Props) {
           </button>
         )}
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 gap-3">
         {DOMAINS.map(d => (
           <DomainCard
             key={d.id}
