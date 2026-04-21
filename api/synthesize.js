@@ -24,6 +24,13 @@ exactly these keys — no extra keys, no prose wrapper:
     "direction": "Narrowing | Stable | Widening",
     "detail": "one sentence"
   },
+  "domain_statuses": {
+    "regulatory_legal": "REQUIRED: one of Opening|Holding|Narrowing|Critical|Closed",
+    "technical_embedding": "REQUIRED: one of Opening|Holding|Narrowing|Critical|Closed",
+    "capability_acceleration": "REQUIRED: one of Opening|Holding|Narrowing|Critical|Closed",
+    "democratic_capacity": "REQUIRED: one of Opening|Holding|Narrowing|Critical|Closed",
+    "industry_structure": "REQUIRED: one of Opening|Holding|Narrowing|Critical|Closed"
+  },
   "most_consequential_signal": "name the single most important signal",
   "cross_domain_synthesis": "2-3 sentence synthesis of the cross-domain picture",
   "reversibility_assessment": "one sentence applying asymmetric reversibility weighting"
