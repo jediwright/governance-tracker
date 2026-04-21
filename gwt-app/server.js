@@ -16,6 +16,13 @@ Given domain signal inputs across five monitoring domains, return ONLY a JSON ob
 exactly these keys — no extra keys, no prose wrapper:
 
 {
+  "domain_statuses": {
+    "regulatory_legal": "REQUIRED: one of Opening|Holding|Narrowing|Critical|Closed",
+    "technical_embedding": "REQUIRED: one of Opening|Holding|Narrowing|Critical|Closed",
+    "capability_acceleration": "REQUIRED: one of Opening|Holding|Narrowing|Critical|Closed",
+    "democratic_capacity": "REQUIRED: one of Opening|Holding|Narrowing|Critical|Closed",
+    "industry_structure": "REQUIRED: one of Opening|Holding|Narrowing|Critical|Closed"
+  },
   "window_status": "Opening | Holding | Narrowing | Critical | Closed",
   "window_trajectory": "one-line direction of travel",
   "embedding_clock": {

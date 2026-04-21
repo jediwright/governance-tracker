@@ -19,7 +19,7 @@ export const DOMAINS = [
 
 export type DomainId = typeof DOMAINS[number]['id'];
 
-export const DEFAULT_STATUS: WindowStatus = 'Holding';
+export const DEFAULT_STATUS: WindowStatus | null = null;
 
 const doc = new Y.Doc();
 

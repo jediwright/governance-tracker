@@ -61,7 +61,7 @@ function DomainCard({ domainId, label, accessCtx, externalDraft, onDraftChange }
   }, [domainId]);
 
   const writable = canSubmit(accessCtx);
-  const cfg = STATUS_CONFIG[state.status];
+  const cfg = STATUS_CONFIG[state.status] ?? { dot: 'bg-gray-200', label: 'Unassessed', ring: 'ring-gray-200' };
   const hasPersistedSignal = !!state.signal;
 
   function handleSubmit() {

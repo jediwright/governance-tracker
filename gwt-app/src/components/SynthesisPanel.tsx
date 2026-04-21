@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import type { WindowStatus } from '../yjsStore';
-import { DOMAINS, getDomainState, observeAll } from '../yjsStore';
+import { DOMAINS, getDomainState, observeAll, setDomainStatus } from '../yjsStore';
 
+interface DomainStatuses { regulatory_legal: WindowStatus; technical_embedding: WindowStatus; capability_acceleration: WindowStatus; democratic_capacity: WindowStatus; industry_structure: WindowStatus; }
 interface SynthesisResult {
+  domain_statuses?: DomainStatuses;
   window_status: WindowStatus;
   window_status_rationale: string;
   window_trajectory: string;
@@ -147,6 +149,20 @@ export function SynthesisPanel() {
         parsed = JSON.parse(jsonMatch[0]);
       } catch (parseErr) {
         throw new Error(`JSON parse failed: ${parseErr}. Raw match: ${jsonMatch[0].slice(0, 200)}`);
+      }
+      console.log("[synthesis] parsed result:", JSON.stringify(parsed, null, 2));
+      if (parsed.domain_statuses) {
+        const map: Record<string, string> = {
+          regulatory_legal: 'regulatory',
+          technical_embedding: 'technical',
+          capability_acceleration: 'capability',
+          democratic_capacity: 'democratic',
+          industry_structure: 'industry',
+        };
+        for (const [key, domainId] of Object.entries(map)) {
+          const status = (parsed.domain_statuses as unknown as Record<string, string>)[key];
+          if (status) setDomainStatus(domainId as any, status as WindowStatus);
+        }
       }
       setResult(parsed);
     } catch (e: unknown) {
