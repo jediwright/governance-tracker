@@ -25,6 +25,13 @@ const doc = new Y.Doc();
 
 // Persist to IndexedDB — data never leaves the browser unless explicitly exported
 const persistence = new IndexeddbPersistence('governance-window-tracker', doc);
+persistence.on('synced', () => {
+  doc.transact(() => {
+    for (const { id } of DOMAINS) {
+      getDomainMap(id).delete('status');
+    }
+  });
+});
 
 export function getDomainMap(domainId: DomainId): Y.Map<unknown> {
   return doc.getMap(`domain:${domainId}`);
