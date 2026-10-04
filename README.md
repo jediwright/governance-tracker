@@ -8,9 +8,9 @@ A local-first web app for assessing whether the window for binding democratic AI
 > **Latest assessment:** Q3 2026 (July 1 to September 30). Status: **Narrowing, by a thin margin.**
 > Poster and status: [The AI Governance Window](https://www.systemsofthought.com/governance/)
 
-<a href="gwt-app/public/ai-governance-window-q3-2026-motion-plate.html"><img src="gwt-app/public/ai-governance-window-q3-2026-poster.svg" alt="The AI Governance Window Tracker, calendar Q3 2026 poster: Narrowing, by a thin margin."></a>
+<a href="https://jediwright.github.io/governance-tracker/gwt-app/public/ai-governance-window-q3-2026-motion-plate.html" target="_blank" rel="noopener"><img src="gwt-app/public/ai-governance-window-q3-2026-poster.svg" alt="The AI Governance Window Tracker, calendar Q3 2026 poster: Narrowing, by a thin margin."></a>
 
-*The calendar Q3 2026 poster. The image links to the motion plate, a single HTML file in this repo: download it and open it in a browser to play it.*
+*The calendar Q3 2026 poster. Click through for the animated version.*
 
 ## What the window is
 
