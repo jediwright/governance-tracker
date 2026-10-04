@@ -8,6 +8,10 @@ A local-first web app for assessing whether the window for binding democratic AI
 > **Latest assessment:** Q3 2026 (July 1 to September 30). Status: **Narrowing, by a thin margin.**
 > Poster and status: [The AI Governance Window](https://www.systemsofthought.com/governance/)
 
+<a href="gwt-app/public/ai-governance-window-q3-2026-motion-plate.html"><img src="gwt-app/public/ai-governance-window-q3-2026-poster.svg" alt="The AI Governance Window Tracker, calendar Q3 2026 poster: Narrowing, by a thin margin."></a>
+
+*The calendar Q3 2026 poster. The image links to the motion plate, a single HTML file in this repo: download it and open it in a browser to play it.*
+
 ## What the window is
 
 The AI governance window is the period, roughly now to 2030, in which binding democratic governance of AI is still structurally possible. Two clocks run against it. One measures how deeply AI is embedding in critical infrastructure. The other measures how much capacity democratic institutions still have to impose and enforce rules. The window is the gap between them.
@@ -21,6 +25,8 @@ I assess it across five domains: regulatory and legal, technical embedding, capa
 | `gwt-app/` | The web app: Vite, React and TypeScript, with Yjs and IndexedDB for local-first storage |
 | `gwt-app/server.js` | A local server for development. It validates the signals, builds the request and calls the Anthropic API |
 | `api/synthesize.js` | The same endpoint as a Vercel serverless function, for production |
+| `gwt-app/public/ai-governance-window-q3-2026-poster.svg` | The Q3 2026 poster |
+| `gwt-app/public/ai-governance-window-q3-2026-motion-plate.html` | The Q3 2026 motion plate: an animated reading of the quarter, in one self-contained file |
 | `vercel.json` | Build and function settings for Vercel |
 
 The app keeps all signal data in your browser. Nothing you enter is stored on a server. Running a synthesis sends your signals to the Anthropic API and returns a cross-domain verdict.
