@@ -42,7 +42,7 @@ worse than equivalent deterioration in regulatory capacity because it resists re
 // ── Request policy ───────────────────────────────────────────────────────────
 // The caller supplies signals and nothing else. The model, the system prompt,
 // the token ceiling and the message text are all set here, on the server.
-const MODEL = 'claude-sonnet-4-5';
+const MODEL = 'claude-sonnet-5-5';
 const MAX_TOKENS = 2000;
 const MAX_SIGNAL_CHARS = 4000;       // per domain
 const MAX_BODY_BYTES = 32 * 1024;    // whole request body
