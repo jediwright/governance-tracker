@@ -21,6 +21,7 @@ body{background:var(--surround);display:flex;flex-direction:column;font-family:'
 #wrap{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;padding:14px}
 #stage{display:block;max-width:100%;max-height:100%;aspect-ratio:16/9;width:auto;height:100%;background:#fff;box-shadow:0 1px 0 rgba(20,46,97,.18),0 18px 50px -18px rgba(10,23,48,.5)}
 @media (max-aspect-ratio:16/9){#stage{width:100%;height:auto}}
+body.embed #wrap{padding:0} body.embed #stage{box-shadow:none}
 body.export #wrap{padding:0} body.export #bar{display:none} body.export #stage{box-shadow:none}
 #bar{flex:none;display:flex;align-items:center;gap:14px;padding:10px 18px;background:var(--bar);color:var(--bar-text);font:500 12px/1 'Space Grotesk','Helvetica Neue',Arial,sans-serif;letter-spacing:.14em;text-transform:uppercase}
 #bar button{appearance:none;border:1px solid rgba(255,255,255,.45);border-radius:4px;background:transparent;color:inherit;font:inherit;letter-spacing:inherit;text-transform:inherit;padding:9px 14px;cursor:pointer;min-width:84px}
@@ -32,7 +33,7 @@ body.export #wrap{padding:0} body.export #bar{display:none} body.export #stage{b
 #scrub::-webkit-slider-thumb{appearance:none;width:14px;height:14px;margin-top:-6px;border-radius:50%;background:#2a7dff;border:2px solid #fff}
 #scrub::-moz-range-thumb{width:10px;height:10px;border-radius:50%;background:#2a7dff;border:2px solid #fff}
 #chap{min-width:10.5em} #time{min-width:6.5em;text-align:right;opacity:.75}
-@media (max-width:640px){#chap{display:none}#bar{gap:10px;padding:8px 12px}}
+@media (max-width:640px){#chap{display:none}#bar{gap:10px;padding:8px 12px}#bar button{min-width:0;padding:9px 10px}}
 
 svg text{font-family:'Space Grotesk','Helvetica Neue',Arial,sans-serif;font-kerning:normal}
 .lab{letter-spacing:.14em;text-transform:uppercase;font-weight:500}
@@ -137,7 +138,7 @@ svg text{font-family:'Space Grotesk','Helvetica Neue',Arial,sans-serif;font-kern
 </g>
 <g id="foot" class="a">
   <rect x="96" y="1016" width="1728" height="1" fill="#142e61" fill-opacity=".2"/>
-  <text class="g2" x="96" y="1041" font-size="13">© 2026 Jedi Wright · Systems of Thought · UX Minds, LLC · Governance Window Tracker v2.1 · Calendar Q3 2026, motion plate v0.3 · Record of Oct 1, 2026 · Four verification items open</text>
+  <text class="g2" x="96" y="1041" font-size="13">© 2026 Jedi Wright · Systems of Thought · UX Minds, LLC · Governance Window Tracker v2.1 · Calendar Q3 2026, motion plate v0.4 · Record of Oct 1, 2026 · Four verification items open</text>
   <text class="g2" x="96" y="1062" font-size="13">* Marks involving Anthropic were drafted by an Anthropic model and are provisional pending independent review.</text>
   <text class="navy" x="1824" y="1062" font-size="13" font-weight="500" text-anchor="end">systemsofthought.com/governance</text>
 </g>
@@ -174,6 +175,7 @@ svg text{font-family:'Space Grotesk','Helvetica Neue',Arial,sans-serif;font-kern
   <input id="scrub" type="range" min="0" max="90" step="0.01" value="0" aria-label="Timeline">
   <span id="time">0:00 / 0:00</span>
   <button id="rs" type="button">Replay</button>
+  <button id="fs" type="button" hidden>Full screen</button>
 </div>
 
 <script>
@@ -648,6 +650,18 @@ document.addEventListener('keydown',function(e){
   else if(e.code==='ArrowRight'){setPlaying(false);seek(t+1)}
   else if(e.code==='ArrowLeft'){setPlaying(false);seek(t-1)}
 });
+
+/* full screen: the way to read it at size when the page column is narrow */
+var fs=$('fs'),de=document.documentElement;
+var fsReq=de.requestFullscreen||de.webkitRequestFullscreen,fsExit=document.exitFullscreen||document.webkitExitFullscreen;
+function fsOn(){return !!(document.fullscreenElement||document.webkitFullscreenElement)}
+if(fsReq&&fsExit&&(document.fullscreenEnabled||document.webkitFullscreenEnabled)){
+  fs.hidden=false;
+  fs.addEventListener('click',function(){try{var p=fsOn()?fsExit.call(document):fsReq.call(de);if(p&&p.catch)p.catch(function(){})}catch(e){}});
+  var fsLab=function(){fs.textContent=fsOn()?'Exit full screen':'Full screen'};
+  document.addEventListener('fullscreenchange',fsLab);document.addEventListener('webkitfullscreenchange',fsLab);
+}
+try{if(window.self!==window.top)document.body.classList.add('embed')}catch(e){document.body.classList.add('embed')}
 
 function start(){
   init();
