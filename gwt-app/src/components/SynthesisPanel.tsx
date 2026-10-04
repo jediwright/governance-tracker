@@ -122,6 +122,8 @@ export function SynthesisPanel() {
     setLoading(true);
     setLoadingStep(0);
     setError(null);
+    // Clear the previous result so a failed run never sits above a stale one.
+    setResult(null);
 
     // Step through loading messages during the async call
     const stepInterval = setInterval(() => {

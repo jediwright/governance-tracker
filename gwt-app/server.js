@@ -51,10 +51,10 @@ worse than equivalent deterioration in regulatory capacity because it resists re
 // The caller supplies signals and nothing else. The model, the system prompt,
 // the token ceiling and the message text are all set here, on the server.
 const MODEL = 'claude-sonnet-5-5';
-const MAX_TOKENS = 2000;
+const MAX_TOKENS = 4000;
 const MAX_SIGNAL_CHARS = 4000;       // per domain
 const MAX_BODY_BYTES = 32 * 1024;    // whole request body
-const UPSTREAM_TIMEOUT_MS = 25_000;
+const UPSTREAM_TIMEOUT_MS = 55_000;
 
 // Per-IP limits; a request must pass every one.
 const RATE_LIMITS = [
@@ -218,7 +218,25 @@ async function callAnthropic(apiKey, signals) {
     console.error('[synthesize] upstream response had no text block; stop_reason:', data?.stop_reason);
     return { status: 502, body: errorBody('upstream_empty', 'The model returned no assessment. Try again.') };
   }
-  return { status: 200, body: { content: [{ type: 'text', text }] } };
+  // A reply that hit the token ceiling is cut off mid-JSON; say so plainly.
+  if (data?.stop_reason === 'max_tokens') {
+    console.error('[synthesize] upstream reply truncated at max_tokens');
+    return { status: 502, body: errorBody('upstream_truncated', 'The assessment was cut off before it finished. Run the synthesis again; if it keeps happening, shorten the signals.') };
+  }
+
+  // Check the reply is readable JSON here, so the app never has to show a parse error.
+  const match = text.match(/\{[\s\S]*\}/);
+  let parsed;
+  try {
+    parsed = match ? JSON.parse(match[0]) : undefined;
+  } catch {
+    parsed = undefined;
+  }
+  if (parsed === undefined || parsed === null || typeof parsed !== 'object') {
+    console.error('[synthesize] upstream reply was not valid JSON; stop_reason:', data?.stop_reason, 'length:', text.length);
+    return { status: 502, body: errorBody('upstream_malformed', 'The model returned an assessment the app could not read. Run the synthesis again.') };
+  }
+  return { status: 200, body: { content: [{ type: 'text', text: JSON.stringify(parsed) }] } };
 }
 
 function errorBody(code, message) {
