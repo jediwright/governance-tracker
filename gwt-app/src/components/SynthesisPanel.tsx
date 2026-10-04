@@ -69,15 +69,15 @@ function downloadMarkdown(result: SynthesisResult, domainsWithSignal: number) {
     `**Trajectory:** ${result.window_trajectory}`,
     '',
     `## Embedding Clock`,
-    `${result.embedding_clock?.position} / ${result.embedding_clock?.rate_of_movement}`,
+    thin ? 'Not enough data' : `${result.embedding_clock?.position} / ${result.embedding_clock?.rate_of_movement}`,
     result.embedding_clock?.detail,
     '',
     `## Institutional Erosion Clock`,
-    `${result.institutional_erosion_clock?.position} / ${result.institutional_erosion_clock?.rate_of_movement}`,
+    thin ? 'Not enough data' : `${result.institutional_erosion_clock?.position} / ${result.institutional_erosion_clock?.rate_of_movement}`,
     result.institutional_erosion_clock?.detail,
     '',
     `## Binding Authority Gap`,
-    `Direction: ${result.binding_authority_gap?.direction}`,
+    thin ? 'Direction: Not enough data' : `Direction: ${result.binding_authority_gap?.direction}`,
     result.binding_authority_gap?.detail,
     '',
     `## Most Consequential Signal`,
@@ -277,23 +277,24 @@ export function SynthesisPanel() {
 
           <div className="grid grid-cols-3 gap-3">
             <DetailCard label="Embedding Clock">
-              <div className="text-sm font-semibold text-gray-700">{result.embedding_clock?.position ?? '—'}</div>
-              <div className="text-xs text-gray-500 font-mono mt-0.5">{result.embedding_clock?.rate_of_movement ?? '—'}</div>
+              <div className="text-sm font-semibold text-gray-700">{thinResult ? '—' : (result.embedding_clock?.position ?? '—')}</div>
+              <div className="text-xs text-gray-500 font-mono mt-0.5">{thinResult ? 'Not enough data' : (result.embedding_clock?.rate_of_movement ?? '—')}</div>
               {result.embedding_clock?.detail && (
                 <p className="text-xs text-gray-400 mt-1.5 leading-relaxed">{result.embedding_clock.detail}</p>
               )}
             </DetailCard>
 
             <DetailCard label="Erosion Clock">
-              <div className="text-sm font-semibold text-gray-700">{result.institutional_erosion_clock?.position ?? '—'}</div>
-              <div className="text-xs text-gray-500 font-mono mt-0.5">{result.institutional_erosion_clock?.rate_of_movement ?? '—'}</div>
+              <div className="text-sm font-semibold text-gray-700">{thinResult ? '—' : (result.institutional_erosion_clock?.position ?? '—')}</div>
+              <div className="text-xs text-gray-500 font-mono mt-0.5">{thinResult ? 'Not enough data' : (result.institutional_erosion_clock?.rate_of_movement ?? '—')}</div>
               {result.institutional_erosion_clock?.detail && (
                 <p className="text-xs text-gray-400 mt-1.5 leading-relaxed">{result.institutional_erosion_clock.detail}</p>
               )}
             </DetailCard>
 
             <DetailCard label="Authority Gap">
-              <div className="text-sm font-semibold text-gray-700">{result.binding_authority_gap?.direction ?? '—'}</div>
+              <div className="text-sm font-semibold text-gray-700">{thinResult ? '—' : (result.binding_authority_gap?.direction ?? '—')}</div>
+              {thinResult && <div className="text-xs text-gray-500 font-mono mt-0.5">Not enough data</div>}
               {result.binding_authority_gap?.detail && (
                 <p className="text-xs text-gray-400 mt-1.5 leading-relaxed">{result.binding_authority_gap.detail}</p>
               )}
