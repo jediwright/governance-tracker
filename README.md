@@ -19,8 +19,8 @@ I assess it across five domains: regulatory and legal, technical embedding, capa
 | Path | What it is |
 |:---|:---|
 | `gwt-app/` | The web app: Vite, React and TypeScript, with Yjs and IndexedDB for local-first storage |
-| `gwt-app/server.js` | A local proxy to the Anthropic API, for development |
-| `api/synthesize.js` | The same proxy as a Vercel serverless function, for production |
+| `gwt-app/server.js` | A local server for development. It validates the signals, builds the request and calls the Anthropic API |
+| `api/synthesize.js` | The same endpoint as a Vercel serverless function, for production |
 | `vercel.json` | Build and function settings for Vercel |
 
 The app keeps all signal data in your browser. Nothing you enter is stored on a server. Running a synthesis sends your signals to the Anthropic API and returns a cross-domain verdict.
@@ -56,6 +56,8 @@ npm run dev
 The dev server forwards `/api` requests to the proxy. Without a key the app still runs and stores signals; only synthesis fails.
 
 To deploy your own copy on Vercel, import the repo and set `ANTHROPIC_API_KEY` as a sensitive environment variable. `vercel.json` handles the rest.
+
+The endpoint is public. It accepts signals only, caps each at 4,000 characters and rate-limits per IP, but that limit is counted per function instance. Add a Vercel Firewall rate-limit rule on `/api/synthesize` and set a spend limit on your Anthropic account.
 
 ## Known limits
 
