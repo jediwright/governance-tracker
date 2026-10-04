@@ -119,22 +119,17 @@ export function SynthesisPanel() {
       setLoadingStep(prev => Math.min(prev + 1, LOADING_STEPS.length - 1));
     }, 900);
 
-    const domainSummary = DOMAINS.map(d => {
+    // The server validates these and builds the model request itself.
+    const signals = Object.fromEntries(DOMAINS.map(d => {
       const s = getDomainState(d.id);
-      return `${d.label}: status=${s.status}, signal="${s.signal || 'none'}"`;
-    }).join('\n');
-
-    const userMessage = `Current domain signal inputs:\n${domainSummary}\n\nProduce the structured assessment JSON.`;
+      return [d.id, { status: s.status, signal: s.signal }];
+    }));
 
     try {
       const res = await fetch('/api/synthesize', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-5',
-          max_tokens: 1000,
-          messages: [{ role: 'user', content: userMessage }],
-        }),
+        body: JSON.stringify({ signals }),
       });
 
       const data = await res.json();
