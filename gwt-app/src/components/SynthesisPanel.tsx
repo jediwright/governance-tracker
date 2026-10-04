@@ -35,6 +35,10 @@ const STATUS_COLORS: Record<string, string> = {
   Closed:    'text-red-900 bg-red-100 border-red-300',
 };
 
+// Below this many domains with a signal, the panel shows "Not enough data"
+// in place of a window status.
+const MIN_DOMAINS_FOR_STATUS = 3;
+
 const LOADING_STEPS = [
   'Collecting domain signals…',
   'Evaluating embedding clock…',
@@ -52,12 +56,15 @@ function DetailCard({ label, children }: { label: string; children: React.ReactN
   );
 }
 
-function downloadMarkdown(result: SynthesisResult) {
+function downloadMarkdown(result: SynthesisResult, domainsWithSignal: number) {
+  const thin = domainsWithSignal < MIN_DOMAINS_FOR_STATUS;
   const date = new Date().toISOString().slice(0, 10);
   const md = [
     `# Governance Window Assessment — ${date}`,
     '',
-    `**Window Status:** ${result.window_status}`,
+    thin
+      ? `**Window Status:** Not enough data (${domainsWithSignal} of ${DOMAINS.length} domains had a signal; the model's provisional reading was "${result.window_status}")`
+      : `**Window Status:** ${result.window_status}`,
     result.window_status_rationale,
     `**Trajectory:** ${result.window_trajectory}`,
     '',
@@ -97,6 +104,8 @@ export function SynthesisPanel() {
   const [loading, setLoading] = useState(false);
   const [loadingStep, setLoadingStep] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  // How many domains had a signal when the shown result was produced.
+  const [resultDomainCount, setResultDomainCount] = useState(0);
 
   const [hasSignals, setHasSignals] = useState(() =>
     DOMAINS.some(d => getDomainState(d.id).signal.trim())
@@ -124,6 +133,8 @@ export function SynthesisPanel() {
       const s = getDomainState(d.id);
       return [d.id, { status: s.status, signal: s.signal }];
     }));
+
+    const domainsWithSignal = DOMAINS.filter(d => getDomainState(d.id).signal.trim()).length;
 
     try {
       const res = await fetch('/api/synthesize', {
@@ -159,6 +170,7 @@ export function SynthesisPanel() {
           if (status) setDomainStatus(domainId as any, status as WindowStatus);
         }
       }
+      setResultDomainCount(domainsWithSignal);
       setResult(parsed);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e));
@@ -168,7 +180,12 @@ export function SynthesisPanel() {
     }
   }
 
-  const statusStyle = result ? (STATUS_COLORS[result.window_status] ?? STATUS_COLORS['Holding']) : '';
+  const thinResult = result !== null && resultDomainCount < MIN_DOMAINS_FOR_STATUS;
+  const statusStyle = !result
+    ? ''
+    : thinResult
+      ? 'text-gray-600 bg-gray-50 border-gray-200'
+      : (STATUS_COLORS[result.window_status] ?? STATUS_COLORS['Holding']);
   const canRun = hasSignals && !loading;
 
   return (
@@ -180,7 +197,7 @@ export function SynthesisPanel() {
         <div className="flex items-center gap-2">
           {result && (
             <button
-              onClick={() => downloadMarkdown(result)}
+              onClick={() => downloadMarkdown(result, resultDomainCount)}
               aria-label="Download assessment as Markdown file"
               className="text-xs px-3 py-2 border border-[#081225]/20 text-[#081225] rounded
                 hover:bg-[#081225]/5 transition-colors font-medium
@@ -240,7 +257,16 @@ export function SynthesisPanel() {
         <div className="space-y-3">
           <div className={`p-4 rounded-lg border ${statusStyle}`}>
             <div className="text-xs font-semibold uppercase tracking-wider mb-1 opacity-70">Window Status</div>
-            <div className="text-2xl font-semibold font-serif mb-2">{result.window_status}</div>
+            <div className="text-2xl font-semibold font-serif mb-2">
+              {thinResult ? 'Not enough data' : result.window_status}
+            </div>
+            {thinResult && (
+              <p className="text-xs leading-relaxed mb-2">
+                Only {resultDomainCount} of {DOMAINS.length} domains had a signal. Enter signals for at
+                least {MIN_DOMAINS_FOR_STATUS} domains to get a window status. The model's provisional
+                reading was "{result.window_status}".
+              </p>
+            )}
             {result.window_status_rationale && (
               <p className="text-xs leading-relaxed opacity-80">{result.window_status_rationale}</p>
             )}
