@@ -1,0 +1,18 @@
+{
+  "status": "Narrowing",
+  "margin": { "size": "thin", "nearest": "Holding" },
+  "confidence": "low_medium",
+  "period": "Jul 1 – Sep 30, 2026",
+  "caveat": "Not fully human-reviewed",
+  "sources": [
+    "governance_tracker_Q3_formal_2026-10.md",
+    "governance_tracker_Q3_formal_addendum_2026-10.md"
+  ],
+  "domains": {
+    "regulatory": { "status": "Holding, leaning advancing", "trend": "Stable to improving" },
+    "technical": { "status": "Contested", "trend": "Contested" },
+    "capability": { "status": "Widening", "trend": "Declining" },
+    "democratic": { "status": "Contested, thin", "trend": "Declining federally" },
+    "industry": { "status": "Concentrating", "trend": "Declining" }
+  }
+}
