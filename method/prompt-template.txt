@@ -209,6 +209,8 @@ LENGTHS
 
 OUTPUT
   Reply with the JSON object only, in the required format. No prose outside it.
+  List every signal in the one "signals" list, each naming its domain by key, and give one
+  line in "domains" for each of the five domains.
   Where the format has no null for a field, use an empty string for text that does not
   apply and "none" for a choice that does not apply. Set "reading" to null when Step 9
   says the status is null.

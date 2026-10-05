@@ -170,12 +170,15 @@ function buildUserMessage(signals) {
 }
 
 // ── Reply format sent to the model ───────────────────────────────────────────
-// Structured outputs allow few nullable fields, so the model's format uses an
-// empty string for "no text" and "none" for "no choice", and keeps everything
-// that depends on a status in one nullable block ("reading"). readAssessment()
-// turns these back into nulls. The app never sees this format.
+// Structured outputs compile the format into a grammar, and the API rejects a
+// grammar that is too large. So the format is kept flat: one list of signals
+// (each naming its domain), one list of domain lines, one list of guard results.
+// It uses an empty string for "no text" and "none" for "no choice", and keeps
+// everything that depends on a status in one nullable block ("reading").
+// readAssessment() rebuilds the nested shape the app uses. The app never sees
+// this format.
 const text = description => ({ type: 'string', description });
-const choice = (values, description) => ({ type: 'string', enum: values, description });
+const choice = (values, description) => ({ type: 'string', enum: values, ...(description ? { description } : {}) });
 const object = (properties, description) => ({
   type: 'object',
   ...(description ? { description } : {}),
@@ -183,95 +186,79 @@ const object = (properties, description) => ({
   required: Object.keys(properties),
   additionalProperties: false,
 });
-const clock = description => object({
-  position: choice(CLOCK_POSITIONS),
-  rate: choice(RATES),
-  detail: text('One sentence.'),
-}, description);
+const list = (items, description) => ({ type: 'array', ...(description ? { description } : {}), items });
+const DOMAIN_IDS = DOMAINS.map(d => d.id);
 
-const OUTPUT_SCHEMA = {
-  ...object({
-    domains: object(Object.fromEntries(DOMAINS.map(d => [d.id, { $ref: '#/$defs/domain' }]))),
-    reading: {
-      description: 'Null when fewer than three domains have an in_window signal classified opening or closing (Step 9).',
-      anyOf: [{ type: 'null' }, { $ref: '#/$defs/reading' }],
-    },
-    since_baseline: object({
-      movement: choice(MOVEMENTS, 'Use not_enough_signals when reading is null.'),
-      what_changed: text('What the in_window signals change, by domain.'),
-      what_held: text('What they leave as the baseline has it.'),
-    }),
-    fudge_guards: object(Object.fromEntries(GUARDS.map(g => [g, object({
-      result: choice(GUARD_RESULTS),
-      note: text('One sentence.'),
-    })]))),
-    f1: object({
-      domains_with_surviving_opening_hits: { type: 'integer' },
-      fires: { type: 'boolean' },
-    }),
-    synthesis_visibility: {
-      description: 'Null unless F-1 fires and the status is Narrowing or worse, or another override is declared.',
-      anyOf: [{ type: 'null' }, { $ref: '#/$defs/synthesis_visibility' }],
-    },
-    most_consequential_signal: text('Empty string if there is no signal.'),
-    cross_domain_synthesis: text('70 words at most.'),
-    reversibility: text('Irreversible losses and irreversible gains, both directions. One sentence.'),
-    anthropic_named: { type: 'boolean' },
-  }),
-  $defs: {
-    signal: object({
-      text: text('One line, 30 words at most.'),
-      date: text('As the visitor stated it. Empty string if the visitor stated none. Never supply one.'),
-      source: text('As the visitor stated it. Empty string if none.'),
-      placement: choice(PLACEMENTS),
-      basis: choice(BASES),
-      referent: text('For example O4.2 or FC-1. Empty string unless basis is "referent".'),
-      direction: choice(SIGNAL_DIRECTIONS),
-      weight: choice([...WEIGHTS, NONE], '"none" unless placement is in_window.'),
-      verification: choice(VERIFICATIONS),
-      lenses: {
-        type: 'array',
-        items: object({
-          lens: choice(LENSES),
-          move: choice(MOVES),
-          reversal_condition: text('The lens\'s reversal condition, from the card.'),
-        }),
-      },
-      note: text('30 words at most. Empty string if none.'),
-    }),
-    domain: object({
-      signals: { type: 'array', description: 'At most 5.', items: { $ref: '#/$defs/signal' } },
-      signals_dropped: { type: 'integer', description: 'Signals found beyond the 5 kept.' },
-      direction: choice([...DOMAIN_DIRECTIONS, NONE], '"none" if the domain has no in_window signal at FULL or PARTIAL.'),
-      key_signal: text('Empty string if the domain has no signal.'),
-    }),
-    reading: object({
+const OUTPUT_SCHEMA = object({
+  signals: list(object({
+    domain: choice(DOMAIN_IDS, 'The key of the domain this signal is scored in.'),
+    text: text('One line, 30 words at most.'),
+    date: text('As the visitor stated it. Empty string if the visitor stated none. Never supply one.'),
+    source: text('As the visitor stated it. Empty string if none.'),
+    placement: choice(PLACEMENTS),
+    basis: choice(BASES),
+    referent: text('For example O4.2 or FC-1. Empty string unless basis is "referent".'),
+    direction: choice(SIGNAL_DIRECTIONS),
+    weight: choice([...WEIGHTS, NONE], '"none" unless placement is in_window.'),
+    verification: choice(VERIFICATIONS),
+    lenses: list(object({
+      lens: choice(LENSES),
+      move: choice(MOVES),
+      reversal_condition: text('The lens\'s reversal condition, from the card.'),
+    })),
+    note: text('30 words at most. Empty string if none.'),
+  }), 'Every signal, in domain order. At most 5 per domain. Empty if there are none.'),
+  domains: list(object({
+    domain: choice(DOMAIN_IDS),
+    signals_dropped: { type: 'integer', description: 'Signals found beyond the 5 kept.' },
+    direction: choice([...DOMAIN_DIRECTIONS, NONE], '"none" if the domain has no in_window signal at FULL or PARTIAL.'),
+    key_signal: text('Empty string if the domain has no signal.'),
+  }), 'One line for each of the five domains.'),
+  reading: {
+    description: 'Null when fewer than three domains have an in_window signal classified opening or closing (Step 9).',
+    anyOf: [{ type: 'null' }, object({
       window_status: choice(STATUSES),
       closed_scope: text('The sector or jurisdiction, if the status is Closed. Otherwise an empty string.'),
-      margin: object({ size: choice(MARGIN_SIZES), nearest: choice(STATUSES, 'The adjacent status this reading is nearest.') }),
+      margin_size: choice(MARGIN_SIZES),
+      margin_nearest: choice(STATUSES, 'The adjacent status this reading is nearest.'),
       confidence: choice(CONFIDENCES),
       rationale: text('Why this status and not the adjacent ones. 70 words at most.'),
-      what_would_change: {
-        type: 'array',
-        description: 'One to three.',
-        items: object({ condition: text('An observation.'), result: text('The status it would force.') }),
-      },
+      what_would_change: list(object({ condition: text('An observation.'), result: text('The status it would force.') }), 'One to three.'),
       upr_sensitivity: text('The status if every UPR observation were weighted PARTIAL. One sentence.'),
       could_have_differed: text('Which referents fired, and whether the status could have come out otherwise. One sentence.'),
-      jurisdictions: object(Object.fromEntries(JURISDICTIONS.map(j => [j, choice([...JURISDICTION_VALUES, NONE], '"none" if no scored hit bears on it.')]))),
-      embedding_clock: clock(),
-      erosion_clock: clock('The institutional-erosion clock.'),
+      jurisdiction_eu: choice([...JURISDICTION_VALUES, NONE], '"none" if no scored hit bears on it.'),
+      jurisdiction_us_federal: choice([...JURISDICTION_VALUES, NONE]),
+      jurisdiction_us_states_courts: choice([...JURISDICTION_VALUES, NONE]),
+      jurisdiction_international: choice([...JURISDICTION_VALUES, NONE]),
+      embedding_clock_position: choice(CLOCK_POSITIONS),
+      embedding_clock_rate: choice(RATES),
+      embedding_clock_detail: text('One sentence.'),
+      erosion_clock_position: choice(CLOCK_POSITIONS, 'The institutional-erosion clock.'),
+      erosion_clock_rate: choice(RATES),
+      erosion_clock_detail: text('One sentence.'),
       clock_interaction: choice(INTERACTIONS),
-      binding_authority_gap: object({ direction: choice(GAP_DIRECTIONS), detail: text('One sentence.') }),
-    }),
-    synthesis_visibility: object({
-      net_picture: choice(NET_PICTURES),
-      override: text('The override applied.'),
-      discounted: text('The opening-hit or gain discounted.'),
-      why: text('Why the override holds. One or two sentences.'),
-    }),
+      gap_direction: choice(GAP_DIRECTIONS, 'The binding-authority gap.'),
+      gap_detail: text('One sentence.'),
+    })],
   },
-};
+  movement: choice(MOVEMENTS, 'Since the baseline. Use not_enough_signals when reading is null.'),
+  what_changed: text('What the in_window signals change, by domain.'),
+  what_held: text('What they leave as the baseline has it.'),
+  fudge_guards: list(object({
+    guard: choice(GUARDS),
+    result: choice(GUARD_RESULTS),
+    note: text('One sentence.'),
+  }), 'One entry for each of FG-1 to FG-5.'),
+  override_declared: { type: 'boolean', description: 'True if a synthesis-visibility declaration is made: required when F-1 fires and the status is Narrowing or worse.' },
+  override_net_picture: choice(NET_PICTURES, 'Net domain picture this cycle.'),
+  override_applied: text('The override applied. Empty string if none is declared.'),
+  override_discounted: text('The opening-hit or gain discounted. Empty string if none is declared.'),
+  override_why: text('Why the override holds. Empty string if none is declared.'),
+  most_consequential_signal: text('Empty string if there is no signal.'),
+  cross_domain_synthesis: text('70 words at most.'),
+  reversibility: text('Irreversible losses and irreversible gains, both directions. One sentence.'),
+  anthropic_named: { type: 'boolean' },
+});
 
 // ── Reading the model's reply ────────────────────────────────────────────────
 // Returns { assessment } in the shape the app uses, or { problem } naming the
@@ -300,47 +287,45 @@ function readAssessment(wire) {
   const bool = (v, path) => (typeof v === 'boolean' ? v : bad(path, 'not true or false'));
   const obj = (v, path) => (isPlainObject(v) ? v : (bad(path, 'missing'), {}));
   const arr = (v, path) => (Array.isArray(v) ? v : (bad(path, 'not a list'), []));
-  const readClock = (v, path) => {
-    const c = obj(v, path);
-    return { position: pick(c.position, CLOCK_POSITIONS, `${path}.position`), rate: pick(c.rate, RATES, `${path}.rate`), detail: str(c.detail, `${path}.detail`) };
-  };
-
   const root = obj(wire, 'reply');
-  const wireDomains = obj(root.domains, 'domains');
-  const domains = {};
-  for (const { id } of DOMAINS) {
-    const d = obj(wireDomains[id], `domains.${id}`);
-    domains[id] = {
-      signals: arr(d.signals, `domains.${id}.signals`).map((raw, i) => {
-        const p = `domains.${id}.signals[${i}]`;
-        const s = obj(raw, p);
+
+  const domains = Object.fromEntries(DOMAIN_IDS.map(id => [id, { signals: [], signals_dropped: 0, direction: null, key_signal: null }]));
+  arr(root.signals, 'signals').forEach((raw, i) => {
+    const p = `signals[${i}]`;
+    const s = obj(raw, p);
+    const id = pick(s.domain, DOMAIN_IDS, `${p}.domain`);
+    const signal = {
+      text: str(s.text, `${p}.text`),
+      date: optStr(s.date, `${p}.date`),
+      source: optStr(s.source, `${p}.source`),
+      placement: pick(s.placement, PLACEMENTS, `${p}.placement`),
+      basis: pick(s.basis, BASES, `${p}.basis`),
+      referent: optStr(s.referent, `${p}.referent`),
+      direction: pick(s.direction, SIGNAL_DIRECTIONS, `${p}.direction`),
+      weight: optPick(s.weight, WEIGHTS, `${p}.weight`),
+      verification: pick(s.verification, VERIFICATIONS, `${p}.verification`),
+      lenses: arr(s.lenses, `${p}.lenses`).map((rawLens, j) => {
+        const l = obj(rawLens, `${p}.lenses[${j}]`);
         return {
-          text: str(s.text, `${p}.text`),
-          date: optStr(s.date, `${p}.date`),
-          source: optStr(s.source, `${p}.source`),
-          placement: pick(s.placement, PLACEMENTS, `${p}.placement`),
-          basis: pick(s.basis, BASES, `${p}.basis`),
-          referent: optStr(s.referent, `${p}.referent`),
-          direction: pick(s.direction, SIGNAL_DIRECTIONS, `${p}.direction`),
-          weight: optPick(s.weight, WEIGHTS, `${p}.weight`),
-          verification: pick(s.verification, VERIFICATIONS, `${p}.verification`),
-          lenses: arr(s.lenses, `${p}.lenses`).map((rawLens, j) => {
-            const l = obj(rawLens, `${p}.lenses[${j}]`);
-            return {
-              lens: pick(l.lens, LENSES, `${p}.lenses[${j}].lens`),
-              move: pick(l.move, MOVES, `${p}.lenses[${j}].move`),
-              reversal_condition: str(l.reversal_condition, `${p}.lenses[${j}].reversal_condition`),
-              searched: 'not searched',   // always, in this app: no search is run
-            };
-          }),
-          note: optStr(s.note, `${p}.note`),
+          lens: pick(l.lens, LENSES, `${p}.lenses[${j}].lens`),
+          move: pick(l.move, MOVES, `${p}.lenses[${j}].move`),
+          reversal_condition: str(l.reversal_condition, `${p}.lenses[${j}].reversal_condition`),
+          searched: 'not searched',   // always, in this app: no search is run
         };
       }),
-      signals_dropped: int(d.signals_dropped, `domains.${id}.signals_dropped`),
-      direction: optPick(d.direction, DOMAIN_DIRECTIONS, `domains.${id}.direction`),
-      key_signal: optStr(d.key_signal, `domains.${id}.key_signal`),
+      note: optStr(s.note, `${p}.note`),
     };
-  }
+    if (id) domains[id].signals.push(signal);
+  });
+  arr(root.domains, 'domains').forEach((raw, i) => {
+    const p = `domains[${i}]`;
+    const d = obj(raw, p);
+    const id = pick(d.domain, DOMAIN_IDS, `${p}.domain`);
+    if (!id) return;
+    domains[id].signals_dropped = int(d.signals_dropped, `${p}.signals_dropped`);
+    domains[id].direction = optPick(d.direction, DOMAIN_DIRECTIONS, `${p}.direction`);
+    domains[id].key_signal = optStr(d.key_signal, `${p}.key_signal`);
+  });
 
   const r = root.reading === null || root.reading === undefined ? null : obj(root.reading, 'reading');
   let reading = {
@@ -349,13 +334,15 @@ function readAssessment(wire) {
     embedding_clock: null, erosion_clock: null, clock_interaction: null, binding_authority_gap: null,
   };
   if (r) {
-    const margin = obj(r.margin, 'reading.margin');
-    const gap = obj(r.binding_authority_gap, 'reading.binding_authority_gap');
-    const j = obj(r.jurisdictions, 'reading.jurisdictions');
+    const readClock = name => ({
+      position: pick(r[`${name}_position`], CLOCK_POSITIONS, `reading.${name}_position`),
+      rate: pick(r[`${name}_rate`], RATES, `reading.${name}_rate`),
+      detail: str(r[`${name}_detail`], `reading.${name}_detail`),
+    });
     reading = {
       window_status: pick(r.window_status, STATUSES, 'reading.window_status'),
       closed_scope: optStr(r.closed_scope, 'reading.closed_scope'),
-      margin: { size: pick(margin.size, MARGIN_SIZES, 'reading.margin.size'), nearest: pick(margin.nearest, STATUSES, 'reading.margin.nearest') },
+      margin: { size: pick(r.margin_size, MARGIN_SIZES, 'reading.margin_size'), nearest: pick(r.margin_nearest, STATUSES, 'reading.margin_nearest') },
       confidence: pick(r.confidence, CONFIDENCES, 'reading.confidence'),
       rationale: str(r.rationale, 'reading.rationale'),
       what_would_change: arr(r.what_would_change, 'reading.what_would_change').map((raw, i) => {
@@ -364,37 +351,37 @@ function readAssessment(wire) {
       }),
       upr_sensitivity: optStr(r.upr_sensitivity, 'reading.upr_sensitivity'),
       could_have_differed: optStr(r.could_have_differed, 'reading.could_have_differed'),
-      jurisdictions: Object.fromEntries(JURISDICTIONS.map(k => [k, optPick(j[k], JURISDICTION_VALUES, `reading.jurisdictions.${k}`)])),
-      embedding_clock: readClock(r.embedding_clock, 'reading.embedding_clock'),
-      erosion_clock: readClock(r.erosion_clock, 'reading.erosion_clock'),
+      jurisdictions: Object.fromEntries(JURISDICTIONS.map(k => [k, optPick(r[`jurisdiction_${k}`], JURISDICTION_VALUES, `reading.jurisdiction_${k}`)])),
+      embedding_clock: readClock('embedding_clock'),
+      erosion_clock: readClock('erosion_clock'),
       clock_interaction: pick(r.clock_interaction, INTERACTIONS, 'reading.clock_interaction'),
-      binding_authority_gap: { direction: pick(gap.direction, GAP_DIRECTIONS, 'reading.binding_authority_gap.direction'), detail: str(gap.detail, 'reading.binding_authority_gap.detail') },
+      binding_authority_gap: { direction: pick(r.gap_direction, GAP_DIRECTIONS, 'reading.gap_direction'), detail: str(r.gap_detail, 'reading.gap_detail') },
     };
   }
 
-  const sb = obj(root.since_baseline, 'since_baseline');
-  const fg = obj(root.fudge_guards, 'fudge_guards');
-  const f1 = obj(root.f1, 'f1');
-  const sv = root.synthesis_visibility === null || root.synthesis_visibility === undefined ? null : obj(root.synthesis_visibility, 'synthesis_visibility');
+  const guardEntries = arr(root.fudge_guards, 'fudge_guards');
+  const fudgeGuards = Object.fromEntries(GUARDS.map(g => {
+    const entry = guardEntries.find(e => isPlainObject(e) && typeof e.guard === 'string' && e.guard.trim().toUpperCase() === g);
+    if (!entry) return [g, bad(`fudge_guards.${g}`, 'missing')];
+    return [g, { result: pick(entry.result, GUARD_RESULTS, `fudge_guards.${g}.result`), note: str(entry.note, `fudge_guards.${g}.note`) }];
+  }));
 
   const assessment = {
     domains,
     ...reading,
-    fudge_guards: Object.fromEntries(GUARDS.map(g => {
-      const entry = obj(fg[g], `fudge_guards.${g}`);
-      return [g, { result: pick(entry.result, GUARD_RESULTS, `fudge_guards.${g}.result`), note: str(entry.note, `fudge_guards.${g}.note`) }];
-    })),
-    f1: { domains_with_surviving_opening_hits: int(f1.domains_with_surviving_opening_hits, 'f1.domains_with_surviving_opening_hits'), fires: bool(f1.fires, 'f1.fires') },
-    synthesis_visibility: sv && {
-      net_picture: pick(sv.net_picture, NET_PICTURES, 'synthesis_visibility.net_picture'),
-      override: str(sv.override, 'synthesis_visibility.override'),
-      discounted: str(sv.discounted, 'synthesis_visibility.discounted'),
-      why: str(sv.why, 'synthesis_visibility.why'),
-    },
+    fudge_guards: fudgeGuards,
+    // F-1 is recounted by the server in applyRules(); the model is not asked for it.
+    f1: { domains_with_surviving_opening_hits: 0, fires: false },
+    synthesis_visibility: bool(root.override_declared, 'override_declared') ? {
+      net_picture: pick(root.override_net_picture, NET_PICTURES, 'override_net_picture'),
+      override: str(root.override_applied, 'override_applied'),
+      discounted: str(root.override_discounted, 'override_discounted'),
+      why: str(root.override_why, 'override_why'),
+    } : null,
     since_baseline: {
-      movement: pick(sb.movement, MOVEMENTS, 'since_baseline.movement'),
-      what_changed: str(sb.what_changed, 'since_baseline.what_changed'),
-      what_held: str(sb.what_held, 'since_baseline.what_held'),
+      movement: pick(root.movement, MOVEMENTS, 'movement'),
+      what_changed: str(root.what_changed, 'what_changed'),
+      what_held: str(root.what_held, 'what_held'),
     },
     most_consequential_signal: optStr(root.most_consequential_signal, 'most_consequential_signal'),
     cross_domain_synthesis: str(root.cross_domain_synthesis, 'cross_domain_synthesis'),
@@ -546,10 +533,18 @@ function applyRules(input, now = new Date()) {
 }
 
 // ── Upstream call ────────────────────────────────────────────────────────────
+// If the API refuses the reply format itself (for example, as too large to
+// compile), the request is sent again with the format written into the message
+// as text. The reply is then checked by readAssessment() and applyRules() exactly
+// as before; only the API's own guarantee of the shape is lost. The refusal is
+// remembered for the life of this instance, so later requests skip the failed call.
+let structuredFormatRejected = false;
+const FORMAT_AS_TEXT = `\n\nReturn one JSON object and nothing else. It must match this JSON Schema exactly, with every field present:\n${JSON.stringify(OUTPUT_SCHEMA)}`;
+
 // One attempt. Returns { wire } (the parsed reply), { retryable: reason } for a
 // reply the app cannot use, or { error: { status, body } } for anything a second
 // attempt would not fix. Upstream detail is logged here, never sent to the caller.
-async function attempt(apiKey, signals, timeoutMs) {
+async function attempt(apiKey, signals, timeoutMs, structured) {
   let upstream;
   try {
     upstream = await fetch('https://api.anthropic.com/v1/messages', {
@@ -563,8 +558,8 @@ async function attempt(apiKey, signals, timeoutMs) {
         model: MODEL,
         max_tokens: MAX_TOKENS,
         system: SYSTEM_PROMPT,
-        messages: [{ role: 'user', content: buildUserMessage(signals) }],
-        output_config: { format: { type: 'json_schema', schema: OUTPUT_SCHEMA } },
+        messages: [{ role: 'user', content: buildUserMessage(signals) + (structured ? '' : FORMAT_AS_TEXT) }],
+        ...(structured ? { output_config: { format: { type: 'json_schema', schema: OUTPUT_SCHEMA } } } : {}),
       }),
       signal: AbortSignal.timeout(timeoutMs),
     });
@@ -580,13 +575,16 @@ async function attempt(apiKey, signals, timeoutMs) {
 
   if (!upstream.ok) {
     console.error('[synthesize] upstream error:', upstream.status, data?.error?.type, data?.error?.message);
+    if (structured && upstream.status === 400 && /grammar|schema|output_config/i.test(String(data?.error?.message))) {
+      return { formatRejected: true };
+    }
     if (upstream.status === 429 || upstream.status === 529) {
       return { error: { status: 503, body: errorBody('upstream_busy', 'The model service is busy. Try again in a minute.') } };
     }
     return { error: { status: 502, body: errorBody('upstream_error', 'The model service returned an error. Try again shortly.') } };
   }
 
-  console.info('[synthesize] usage:', JSON.stringify({ input: data?.usage?.input_tokens, output: data?.usage?.output_tokens, stop: data?.stop_reason }));
+  console.info('[synthesize] usage:', JSON.stringify({ input: data?.usage?.input_tokens, output: data?.usage?.output_tokens, stop: data?.stop_reason, format: structured ? 'structured' : 'prompt_only' }));
 
   // A reply that hit the token ceiling is cut off mid-JSON. A second attempt
   // would hit the same ceiling, so this is not retried.
@@ -620,7 +618,12 @@ async function callAnthropic(apiKey, signals) {
 
   for (let n = 1; n <= 2; n++) {
     const attemptStarted = Date.now();
-    const result = await attempt(apiKey, signals, deadline - attemptStarted);
+    let result = await attempt(apiKey, signals, deadline - attemptStarted, !structuredFormatRejected);
+    if (result.formatRejected) {
+      console.error('[synthesize] the API refused the reply format; sending it as text instead');
+      structuredFormatRejected = true;
+      result = await attempt(apiKey, signals, deadline - Date.now(), false);
+    }
     if (result.error) return result.error;
 
     if (result.wire) {

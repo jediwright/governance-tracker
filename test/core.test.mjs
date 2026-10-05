@@ -21,21 +21,29 @@ const sig = (o = {}) => ({
   referent: 'O1.1', direction: 'opening', weight: 'FULL', verification: 'as_entered', lenses: [], note: '', ...o,
 });
 const dom = (signals = [], direction = 'none') => ({ signals, signals_dropped: 0, direction, key_signal: signals.length ? 'k' : '' });
+// Tests describe a reply domain by domain; wire() lays it out in the flat format
+// the model is asked for.
 const reading = (o = {}) => ({
-  window_status: 'Holding', closed_scope: '', margin: { size: 'thin', nearest: 'Narrowing' }, confidence: 'low',
+  window_status: 'Holding', closed_scope: '', margin_size: 'thin', margin_nearest: 'Narrowing', confidence: 'low',
   rationale: 'r', what_would_change: [{ condition: 'c', result: 'Opening' }], upr_sensitivity: 'u', could_have_differed: 'd',
-  jurisdictions: { eu: 'advancing', us_federal: 'none', us_states_courts: 'holding', international: 'none' },
-  embedding_clock: { position: 'mid', rate: 'steady', detail: 'x' }, erosion_clock: { position: 'mid', rate: 'steady', detail: 'x' },
-  clock_interaction: 'independent', binding_authority_gap: { direction: 'stable', detail: 'x' }, ...o,
+  jurisdiction_eu: 'advancing', jurisdiction_us_federal: 'none', jurisdiction_us_states_courts: 'holding', jurisdiction_international: 'none',
+  embedding_clock_position: 'mid', embedding_clock_rate: 'steady', embedding_clock_detail: 'x',
+  erosion_clock_position: 'mid', erosion_clock_rate: 'steady', erosion_clock_detail: 'x',
+  clock_interaction: 'independent', gap_direction: 'stable', gap_detail: 'x', ...o,
 });
-const wire = (domains = {}, rd = reading(), o = {}) => ({
-  domains: { regulatory: dom(), technical: dom(), capability: dom(), democratic: dom(), industry: dom(), ...domains },
-  reading: rd,
-  since_baseline: { movement: rd ? 'no_change' : 'not_enough_signals', what_changed: 'a', what_held: 'b' },
-  fudge_guards: Object.fromEntries(['FG-1', 'FG-2', 'FG-3', 'FG-4', 'FG-5'].map(g => [g, { result: 'satisfied', note: 'n' }])),
-  f1: { domains_with_surviving_opening_hits: 9, fires: false },
-  synthesis_visibility: null, most_consequential_signal: 'm', cross_domain_synthesis: 'c', reversibility: 'r', anthropic_named: false, ...o,
-});
+const IDS = ['regulatory', 'technical', 'capability', 'democratic', 'industry'];
+const wire = (domains = {}, rd = reading(), o = {}) => {
+  const all = { regulatory: dom(), technical: dom(), capability: dom(), democratic: dom(), industry: dom(), ...domains };
+  return {
+    signals: IDS.flatMap(id => all[id].signals.map(s => ({ domain: id, ...s }))),
+    domains: IDS.map(id => ({ domain: id, signals_dropped: all[id].signals_dropped, direction: all[id].direction, key_signal: all[id].key_signal })),
+    reading: rd,
+    movement: rd ? 'no_change' : 'not_enough_signals', what_changed: 'a', what_held: 'b',
+    fudge_guards: ['FG-1', 'FG-2', 'FG-3', 'FG-4', 'FG-5'].map(g => ({ guard: g, result: 'satisfied', note: 'n' })),
+    override_declared: false, override_net_picture: 'mixed', override_applied: '', override_discounted: '', override_why: '',
+    most_consequential_signal: 'm', cross_domain_synthesis: 'c', reversibility: 'r', anthropic_named: false, ...o,
+  };
+};
 const run = w => {
   const r = core.readAssessment(w);
   return r.problem ? r : core.applyRules(r.assessment);
@@ -110,6 +118,8 @@ test('the visitor\'s status never reaches the model', () => {
 test('the reply format stays inside the documented structured-output limits', () => {
   const json = JSON.stringify(core.OUTPUT_SCHEMA);
   assert.ok((json.match(/"anyOf"/g) ?? []).length <= 16);
+  assert.ok(!json.includes('$ref'), 'no shared definitions: each would be compiled once per use');
+  assert.ok((json.match(/"type":"object"/g) ?? []).length <= 8, 'the format stays flat');
   for (const k of ['minLength', 'maxLength', 'minimum', 'maximum', 'maxItems', 'minItems', 'pattern']) {
     assert.ok(!json.includes(`"${k}"`), `${k} is not supported`);
   }
@@ -147,7 +157,9 @@ test('values are matched without regard to capitalisation', () => {
 });
 
 test('a reply with a missing or disallowed value is rejected', () => {
-  assert.match(core.readAssessment({}).problem, /domains/);
+  assert.match(core.readAssessment({}).problem, /signals/);
+  assert.match(run({ ...wire(three()), fudge_guards: [] }).problem, /fudge_guards/);
+  assert.match(run(wire({ ...three(), regulatory: dom([sig({ domain: 'elsewhere' })], 'opening') })).problem, /signals\[0\]\.domain/);
   assert.match(run(wire(three(), reading({ confidence: 'high' }))).problem, /confidence/);
   assert.match(run(wire(three(), reading({ window_status: 'Fine' }))).problem, /window_status/);
 });
@@ -232,8 +244,9 @@ test('F-1 is counted by the server, and an undeclared override is rejected', () 
   assert.deepEqual(ok.assessment.f1, { domains_with_surviving_opening_hits: 2, fires: true });
   assert.match(run(wire(three(), reading({ window_status: 'Narrowing' }))).problem, /F-1 fires/);
   const declared = run(wire(three(), reading({ window_status: 'Narrowing' }),
-    { synthesis_visibility: { net_picture: 'mixed', override: 'o', discounted: 'd', why: 'w' } }));
+    { override_declared: true, override_net_picture: 'mixed', override_applied: 'o', override_discounted: 'd', override_why: 'w' }));
   assert.equal(declared.assessment.window_status, 'Narrowing');
+  assert.deepEqual(declared.assessment.synthesis_visibility, { net_picture: 'mixed', override: 'o', discounted: 'd', why: 'w' });
 });
 
 test('replies the server cannot repair are rejected', () => {
@@ -307,6 +320,41 @@ test('a reply cut off at the token limit is not retried', async () => {
   const r = await post([{ content: [{ type: 'text', text: '{"a"' }], stop_reason: 'max_tokens' }, good()]);
   assert.equal(r.calls, 1);
   assert.equal(r.body.error.code, 'upstream_truncated');
+});
+
+// Keep this after the other endpoint tests: the refusal is remembered for the
+// rest of the process, so later requests no longer send the structured format.
+test('if the API refuses the reply format, it is sent as text instead, and remembered', async () => {
+  const realFetch = globalThis.fetch;
+  const realError = console.error;
+  const realInfo = console.info;
+  const bodies = [];
+  globalThis.fetch = async (url, options) => {
+    const body = JSON.parse(options.body);
+    bodies.push(body);
+    if (body.output_config) {
+      return { ok: false, status: 400, json: async () => ({ error: { type: 'invalid_request_error', message: 'The compiled grammar is too large, which would cause performance issues.' } }) };
+    }
+    return { ok: true, status: 200, json: async () => good() };
+  };
+  console.error = () => {};
+  console.info = () => {};
+  try {
+    const first = await core.callAnthropic('test-key-not-real', core.validateBody({ signals: { regulatory: { signal: 'x' } } }).signals);
+    assert.equal(first.status, 200);
+    assert.equal(bodies.length, 2);
+    assert.ok(bodies[0].output_config);
+    assert.equal(bodies[1].output_config, undefined);
+    assert.ok(bodies[1].messages[0].content.includes('It must match this JSON Schema exactly'));
+    const second = await core.callAnthropic('test-key-not-real', core.validateBody({ signals: { regulatory: { signal: 'x' } } }).signals);
+    assert.equal(second.status, 200);
+    assert.equal(bodies.length, 3, 'the refused format is not tried again');
+    assert.equal(bodies[2].output_config, undefined);
+  } finally {
+    globalThis.fetch = realFetch;
+    console.error = realError;
+    console.info = realInfo;
+  }
 });
 
 test('a bad request never reaches the model', async () => {
