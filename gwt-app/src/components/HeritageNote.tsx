@@ -54,8 +54,10 @@ export function HeritageNote() {
               <div className="font-semibold text-gray-500 mb-1 font-mono">Data model</div>
               <p className="leading-relaxed">
                 All signal state persists in Y.js / IndexedDB — a CRDT-backed local-first store.
-                Data never leaves the browser unless explicitly exported. This mirrors the Ink &amp; Switch
-                local-first philosophy: user-owned state, no platform dependency.
+                Signals are stored in this browser only; the app's server does not store them. Running a
+                synthesis sends them through that server to an AI model made by Anthropic, which returns the
+                reading. The stored state follows the Ink &amp; Switch local-first philosophy: it is
+                user-owned and needs no account.
               </p>
             </div>
           </div>

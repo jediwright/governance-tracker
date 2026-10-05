@@ -387,6 +387,13 @@ test('if the API refuses the reply format, it is sent as text instead, and remem
   }
 });
 
+test('the page does not say that data stays in the browser', () => {
+  const page = ['App.tsx', 'components/HeritageNote.tsx'].map(f => readFileSync(join(root, 'gwt-app', 'src', f), 'utf8')).join('\n');
+  assert.doesNotMatch(page, /no data leaves|never leaves the browser/i);
+  assert.match(page, /Running a\s+synthesis sends them/);
+  assert.match(page, /stored in this browser only/);
+});
+
 test('a bad request never reaches the model', async () => {
   const r = await post([good()], { signals: { regulatory: { signal: '' } } });
   assert.equal(r.code, 400);

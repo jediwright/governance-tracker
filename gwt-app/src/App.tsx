@@ -45,7 +45,7 @@ export default function App() {
 
       <footer className="border-t border-gray-100 px-6 py-4 mt-8">
         <div className="max-w-7xl mx-auto text-xs text-gray-300 font-mono">
-          Systems of Thought · J. Wright / UX Minds, LLC · Local state only — no data leaves this browser
+          Systems of Thought · J. Wright / UX Minds, LLC · Signals are stored in this browser only · Running a synthesis sends them to an AI model made by Anthropic
         </div>
       </footer>
     </div>

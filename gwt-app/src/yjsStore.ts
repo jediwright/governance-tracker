@@ -22,7 +22,8 @@ export type DomainId = typeof DOMAINS[number]['id'];
 
 const doc = new Y.Doc();
 
-// Persist to IndexedDB — data never leaves the browser unless explicitly exported
+// Persist to IndexedDB. Signals are stored in the browser only. They are sent to
+// the server, and on to the model, only when the visitor runs a synthesis.
 const persistence = new IndexeddbPersistence('governance-window-tracker', doc);
 // Earlier versions stored a status per domain. It is no longer used: a domain's
 // reading comes from a synthesis run and is not stored. Clear any left behind.
