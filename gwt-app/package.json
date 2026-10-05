@@ -8,6 +8,7 @@
     "proxy": "node server.js",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
+    "test": "node --test ../test/core.test.mjs",
     "preview": "vite preview"
   },
   "dependencies": {
