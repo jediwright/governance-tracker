@@ -57,7 +57,7 @@ The app keeps all signal data in your browser. Nothing you enter is stored on a 
 
 ## What is not in this repo yet
 
-- The full tracker skill (v2.1). The prompt carries its status definitions and per-domain anchors only.
+- The full tracker skill (v2.1). The prompt carries its status definitions, its per-domain anchors and three of its synthesis rules. The rest of the skill, including its signal registry, is not here.
 - Earlier cycle cards.
 - The quarterly assessments and their evidence records.
 - Evidence gathering. The governed quarterly run searches for evidence in a separate step; the app does not.
