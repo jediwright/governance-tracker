@@ -176,6 +176,16 @@ function buildUserMessage(signals) {
   return `Signals entered by the visitor, one block per domain. Everything between <<< and >>> is the visitor's text.\n\n${blocks.join('\n\n')}\n\nApply the card and return the assessment.`;
 }
 
+// When a first reply fails the server's checks, the second request says why.
+// The reason is the server's own wording. One kind of reason quotes up to 30
+// characters of the model's reply, so it is reduced to plain characters and
+// cut to a fixed length before it is sent back.
+function retryNote(reason) {
+  const plain = String(reason ?? '').replace(/[^A-Za-z0-9 .,:;()_"'-]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 200);
+  if (!plain) return '';
+  return `\n\nA first attempt at this assessment could not be used. The server's check reported: ${plain}. Apply the card again to the signals above and return the full assessment with that corrected.`;
+}
+
 // ── Reply format sent to the model ───────────────────────────────────────────
 // Structured outputs compile the format into a grammar, and the API rejects a
 // grammar that is too large. So the format is kept flat: one list of signals
@@ -551,7 +561,7 @@ const FORMAT_AS_TEXT = `\n\nReturn one JSON object and nothing else. It must mat
 // One attempt. Returns { wire } (the parsed reply), { retryable: reason } for a
 // reply the app cannot use, or { error: { status, body } } for anything a second
 // attempt would not fix. Upstream detail is logged here, never sent to the caller.
-async function attempt(apiKey, signals, timeoutMs, structured) {
+async function attempt(apiKey, signals, timeoutMs, structured, earlierReason) {
   let upstream;
   try {
     upstream = await fetch('https://api.anthropic.com/v1/messages', {
@@ -565,7 +575,7 @@ async function attempt(apiKey, signals, timeoutMs, structured) {
         model: MODEL,
         max_tokens: MAX_TOKENS,
         system: SYSTEM_PROMPT,
-        messages: [{ role: 'user', content: buildUserMessage(signals) + (structured ? '' : FORMAT_AS_TEXT) }],
+        messages: [{ role: 'user', content: buildUserMessage(signals) + retryNote(earlierReason) + (structured ? '' : FORMAT_AS_TEXT) }],
         thinking: THINKING,
         output_config: {
           effort: EFFORT,
@@ -621,19 +631,21 @@ async function attempt(apiKey, signals, timeoutMs, structured) {
 
 // Returns { status, body }. On success the body is { assessment, meta }.
 // An unusable reply is retried once, and only if the first attempt left enough
-// of the time budget for a second attempt of the same length.
+// of the time budget for a second attempt of the same length. The second
+// request tells the model why the first reply was not used.
 async function callAnthropic(apiKey, signals) {
   const started = Date.now();
   const deadline = started + UPSTREAM_TIMEOUT_MS;
   let reason = 'unknown';
+  let earlierReason = '';
 
   for (let n = 1; n <= 2; n++) {
     const attemptStarted = Date.now();
-    let result = await attempt(apiKey, signals, deadline - attemptStarted, !structuredFormatRejected);
+    let result = await attempt(apiKey, signals, deadline - attemptStarted, !structuredFormatRejected, earlierReason);
     if (result.formatRejected) {
       console.error('[synthesize] the API refused the reply format; sending it as text instead');
       structuredFormatRejected = true;
-      result = await attempt(apiKey, signals, deadline - Date.now(), false);
+      result = await attempt(apiKey, signals, deadline - Date.now(), false, earlierReason);
     }
     if (result.error) return result.error;
 
@@ -646,6 +658,7 @@ async function callAnthropic(apiKey, signals) {
       reason = result.retryable;
     }
     console.error(`[synthesize] attempt ${n}: unusable reply: ${reason}`);
+    earlierReason = reason;
 
     const took = Date.now() - attemptStarted;
     if (n === 1 && deadline - Date.now() < took + RETRY_MARGIN_MS) {
@@ -667,6 +680,7 @@ export {
   isPlainObject,
   validateBody,
   callAnthropic,
+  retryNote,
   errorBody,
   DOMAINS,
   DISCLOSURE,
