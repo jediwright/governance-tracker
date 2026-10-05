@@ -13,6 +13,13 @@ import { CARD, BASELINE, SYSTEM_PROMPT } from './_method.js';
 const MODEL = 'claude-sonnet-5-5';
 const METHOD = 'AI Governance Window Tracker v2.1.0';
 const MAX_TOKENS = 4000;
+// On this model, reasoning before the answer is on unless asked otherwise, and
+// its tokens count against MAX_TOKENS: the first live run spent the whole
+// ceiling before the reply finished. "between_tools" is the model's lowest
+// thinking setting; with no tools in the request, the reply is text only.
+// The card, the prompt's steps and the server's checks carry the method.
+const THINKING = { type: 'between_tools' };
+const EFFORT = 'medium';
 const MAX_SIGNAL_CHARS = 4000;       // per domain
 const MAX_BODY_BYTES = 32 * 1024;    // whole request body
 const UPSTREAM_TIMEOUT_MS = 55_000;  // shared by the first attempt and the retry
@@ -559,7 +566,11 @@ async function attempt(apiKey, signals, timeoutMs, structured) {
         max_tokens: MAX_TOKENS,
         system: SYSTEM_PROMPT,
         messages: [{ role: 'user', content: buildUserMessage(signals) + (structured ? '' : FORMAT_AS_TEXT) }],
-        ...(structured ? { output_config: { format: { type: 'json_schema', schema: OUTPUT_SCHEMA } } } : {}),
+        thinking: THINKING,
+        output_config: {
+          effort: EFFORT,
+          ...(structured ? { format: { type: 'json_schema', schema: OUTPUT_SCHEMA } } : {}),
+        },
       }),
       signal: AbortSignal.timeout(timeoutMs),
     });
@@ -575,7 +586,7 @@ async function attempt(apiKey, signals, timeoutMs, structured) {
 
   if (!upstream.ok) {
     console.error('[synthesize] upstream error:', upstream.status, data?.error?.type, data?.error?.message);
-    if (structured && upstream.status === 400 && /grammar|schema|output_config/i.test(String(data?.error?.message))) {
+    if (structured && upstream.status === 400 && /grammar|schema|output_config\.format|structured output/i.test(String(data?.error?.message))) {
       return { formatRejected: true };
     }
     if (upstream.status === 429 || upstream.status === 529) {
@@ -584,7 +595,7 @@ async function attempt(apiKey, signals, timeoutMs, structured) {
     return { error: { status: 502, body: errorBody('upstream_error', 'The model service returned an error. Try again shortly.') } };
   }
 
-  console.info('[synthesize] usage:', JSON.stringify({ input: data?.usage?.input_tokens, output: data?.usage?.output_tokens, stop: data?.stop_reason, format: structured ? 'structured' : 'prompt_only' }));
+  console.info('[synthesize] usage:', JSON.stringify({ input: data?.usage?.input_tokens, output: data?.usage?.output_tokens, stop: data?.stop_reason, format: structured ? 'structured' : 'prompt_only', blocks: Array.isArray(data?.content) ? data.content.map(b => b?.type) : [], detail: data?.usage }));
 
   // A reply that hit the token ceiling is cut off mid-JSON. A second attempt
   // would hit the same ceiling, so this is not retried.

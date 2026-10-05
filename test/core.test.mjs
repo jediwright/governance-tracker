@@ -297,6 +297,9 @@ test('the request sets the model, the prompt and the reply format on the server'
   assert.equal(r.sent.model, 'claude-sonnet-5-5');
   assert.equal(r.sent.system, SYSTEM_PROMPT);
   assert.equal(r.sent.output_config.format.type, 'json_schema');
+  assert.deepEqual(r.sent.thinking, { type: 'between_tools' }, 'no reasoning tokens are spent before the reply');
+  assert.equal(r.sent.output_config.effort, 'medium');
+  assert.equal(r.sent.max_tokens, 4000);
   assert.equal(r.sent.tool_choice, undefined);
   assert.equal(r.sent.tools, undefined);
   assert.deepEqual(Object.keys(r.body), ['assessment', 'meta']);
@@ -332,7 +335,7 @@ test('if the API refuses the reply format, it is sent as text instead, and remem
   globalThis.fetch = async (url, options) => {
     const body = JSON.parse(options.body);
     bodies.push(body);
-    if (body.output_config) {
+    if (body.output_config.format) {
       return { ok: false, status: 400, json: async () => ({ error: { type: 'invalid_request_error', message: 'The compiled grammar is too large, which would cause performance issues.' } }) };
     }
     return { ok: true, status: 200, json: async () => good() };
@@ -343,13 +346,14 @@ test('if the API refuses the reply format, it is sent as text instead, and remem
     const first = await core.callAnthropic('test-key-not-real', core.validateBody({ signals: { regulatory: { signal: 'x' } } }).signals);
     assert.equal(first.status, 200);
     assert.equal(bodies.length, 2);
-    assert.ok(bodies[0].output_config);
-    assert.equal(bodies[1].output_config, undefined);
+    assert.ok(bodies[0].output_config.format);
+    assert.equal(bodies[1].output_config.format, undefined);
+    assert.deepEqual(bodies[1].thinking, { type: 'between_tools' });
     assert.ok(bodies[1].messages[0].content.includes('It must match this JSON Schema exactly'));
     const second = await core.callAnthropic('test-key-not-real', core.validateBody({ signals: { regulatory: { signal: 'x' } } }).signals);
     assert.equal(second.status, 200);
     assert.equal(bodies.length, 3, 'the refused format is not tried again');
-    assert.equal(bodies[2].output_config, undefined);
+    assert.equal(bodies[2].output_config.format, undefined);
   } finally {
     globalThis.fetch = realFetch;
     console.error = realError;
