@@ -46,10 +46,12 @@ export function getDomainState(domainId: DomainId): DomainState {
   };
 }
 
+// Saving an empty signal clears the domain.
 export function setDomainSignal(domainId: DomainId, signal: string): void {
   doc.transact(() => {
     const map = getDomainMap(domainId);
-    map.set('signal', signal);
+    if (signal) map.set('signal', signal);
+    else map.delete('signal');
     map.set('updatedAt', Date.now());
   });
 }

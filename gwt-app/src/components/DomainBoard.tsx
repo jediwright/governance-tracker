@@ -5,6 +5,7 @@ import {
   getDomainState,
   setDomainSignal,
   observeAll,
+  persistence,
 } from '../yjsStore';
 import type { AccessContext } from '../permissions';
 import { canSubmit } from '../permissions';
@@ -77,8 +78,13 @@ function DomainCard({ domainId, label, accessCtx, externalDraft, onDraftChange }
   const readingSource = runState === null ? 'Q3 record' : 'This run';
   const cfg = direction ? DIRECTION_STYLE[direction] : NEUTRAL_STYLE;
 
+  // The box can be saved whenever it differs from what is stored. Saving an
+  // empty box clears the stored signal.
+  const changed = draft.trim() !== state.signal;
+  const clearing = changed && !draft.trim();
+
   function handleSubmit() {
-    if (!writable || !draft.trim()) return;
+    if (!writable || !changed) return;
     setDomainSignal(domainId, draft.trim());
   }
 
@@ -176,14 +182,14 @@ function DomainCard({ domainId, label, accessCtx, externalDraft, onDraftChange }
         {writable && (
           <button
             onClick={handleSubmit}
-            disabled={!draft.trim()}
-            aria-label={`Submit signal for ${label}`}
+            disabled={!changed}
+            aria-label={clearing ? `Clear the saved signal for ${label}` : `Submit signal for ${label}`}
             className="text-xs px-3 py-1 bg-[#081225] text-white rounded
               hover:bg-[#081225]/90 disabled:opacity-40 disabled:cursor-not-allowed
               transition-colors font-medium
               focus:outline-none focus-visible:ring-2 focus-visible:ring-[#081225] focus-visible:ring-offset-1"
           >
-            Submit Signal
+            {clearing ? 'Clear Signal' : 'Submit Signal'}
           </button>
         )}
       </div>
@@ -202,6 +208,23 @@ export function DomainBoard({ accessCtx }: Props) {
     Object.fromEntries(DOMAINS.map(d => [d.id, getDomainState(d.id).signal])) as Record<DomainId, string>
   );
 
+  // Saved signals load from the browser's storage a moment after the page opens.
+  // Once they have, show them in any box the visitor has not typed in yet.
+  useEffect(() => {
+    let live = true;
+    persistence.whenSynced.then(() => {
+      if (!live) return;
+      setAllDrafts(prev => Object.fromEntries(
+        DOMAINS.map(d => [d.id, prev[d.id] || getDomainState(d.id).signal])
+      ) as Record<DomainId, string>);
+    });
+    return () => { live = false; };
+  }, []);
+
+  // Re-read on every store change, so the buttons below reflect what is saved.
+  const [, setTick] = useState(0);
+  useEffect(() => observeAll(() => setTick(t => t + 1)), []);
+
   function handleDraftChange(domainId: DomainId, value: string) {
     setAllDrafts(prev => ({ ...prev, [domainId]: value }));
   }
@@ -209,12 +232,12 @@ export function DomainBoard({ accessCtx }: Props) {
   function handleSubmitAll() {
     if (!writable) return;
     DOMAINS.forEach(d => {
-      const val = allDrafts[d.id];
-      if (val?.trim()) setDomainSignal(d.id, val.trim());
+      const val = (allDrafts[d.id] ?? '').trim();
+      if (val !== getDomainState(d.id).signal) setDomainSignal(d.id, val);
     });
   }
 
-  const anyDraft = DOMAINS.some(d => allDrafts[d.id]?.trim());
+  const anyChanged = DOMAINS.some(d => (allDrafts[d.id] ?? '').trim() !== getDomainState(d.id).signal);
 
   return (
     <section aria-label="Five Domain Signal Board">
@@ -225,8 +248,8 @@ export function DomainBoard({ accessCtx }: Props) {
         {writable && (
           <button
             onClick={handleSubmitAll}
-            disabled={!anyDraft}
-            aria-label="Submit all domain signals at once"
+            disabled={!anyChanged}
+            aria-label="Save every changed domain signal at once; an emptied box clears its signal"
             className="text-xs px-4 py-1.5 bg-[#081225] text-white rounded
               hover:bg-[#081225]/90 disabled:opacity-40 disabled:cursor-not-allowed
               transition-colors font-medium

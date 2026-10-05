@@ -93,6 +93,7 @@ test('the prompt asks for JSON, not a tool call, and names no out-of-date wordin
   assert.ok(!SYSTEM_PROMPT.includes('record_assessment'));
   assert.ok(SYSTEM_PROMPT.includes('Reply with the JSON object only'));
   assert.ok(!SYSTEM_PROMPT.includes('epistemic infrastructure'));
+  assert.ok(SYSTEM_PROMPT.includes('The catalog ceiling applies only where the basis\n  is "catalog".'));
 });
 
 // ── The request ──────────────────────────────────────────────────────────────

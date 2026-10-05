@@ -144,7 +144,7 @@ function buildMarkdown(r: SynthesisResponse): string {
 
   if (a.what_would_change.length) {
     lines.push('## What would change the status');
-    for (const w of a.what_would_change) lines.push(`- If ${w.if} → ${w.then}`);
+    for (const w of a.what_would_change) lines.push(`- ${w.if} → ${w.then}`);
     lines.push('');
   }
   if (a.upr_sensitivity) lines.push(`**If every un-pre-registered observation were weighted PARTIAL:** ${a.upr_sensitivity}`);
@@ -382,7 +382,7 @@ export function SynthesisPanel() {
               <DetailCard label="What would change the status">
                 <ul className="text-xs text-gray-700 leading-relaxed list-disc pl-4 space-y-0.5">
                   {a.what_would_change.map((w, i) => (
-                    <li key={i}>If {w.if} → {w.then}</li>
+                    <li key={i}>{w.if} → {w.then}</li>
                   ))}
                 </ul>
                 {a.upr_sensitivity && (

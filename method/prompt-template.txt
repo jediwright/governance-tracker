@@ -142,7 +142,9 @@ Step 3. Classify against the card, not by fresh judgment.
   right one and say so in the note.
 
 Step 4. Weight (card WEIGHT LABELS; in_window signals only).
-  Use FULL, PARTIAL, LOW or ZERO and no other word. Assign the weight on the condition that
+  Use FULL, PARTIAL, LOW or ZERO and no other word. A referent's closing clause is weighted
+  by the same labels as its opening clause. The catalog ceiling applies only where the basis
+  is "catalog". Assign the weight on the condition that
   the signal is accurate as entered, and set verification to "as_entered". If the visitor's
   own text marks the signal as unconfirmed, rumoured or not checked, set verification to "?"
   and cap the weight at LOW, as the card requires for "? Assumed" evidence.
