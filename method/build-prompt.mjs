@@ -1,7 +1,8 @@
-// Builds api/_method.js from the locked card, the prompt template and the baseline.
+// Builds api/_method.js (for the server) and gwt-app/src/method.generated.ts (for
+// the app) from the locked card, the prompt template and the baseline.
 //
-//   node method/build-prompt.mjs          writes api/_method.js
-//   node method/build-prompt.mjs --check  exits 1 if api/_method.js is out of date
+//   node method/build-prompt.mjs          writes both files
+//   node method/build-prompt.mjs --check  exits 1 if either file is out of date
 //
 // The card file is the locked card, byte for byte. Nothing here edits it. The
 // template pulls card lines in by number, so the prompt cannot drift from the card
@@ -16,6 +17,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const CARD_FILE = 'card-2026Q4-OctDec-v2_1.md';
 const CARD_SHA256_PREFIX = 'e14d8007';
 const OUT = join(here, '..', 'api', '_method.js');
+const APP_OUT = join(here, '..', 'gwt-app', 'src', 'method.generated.ts');
 
 const cardRaw = readFileSync(join(here, CARD_FILE));
 const sha = createHash('sha256').update(cardRaw).digest('hex');
@@ -98,15 +100,37 @@ export const BASELINE = ${JSON.stringify(baseline, null, 2)};
 export const SYSTEM_PROMPT = ${JSON.stringify(systemPrompt)};
 `;
 
+// The app shows the baseline before any run, so it needs the same record the
+// server uses. It gets the card's identity and the baseline, not the prompt.
+const appOut = `// GENERATED FILE. Do not edit by hand.
+// Built by method/build-prompt.mjs from method/${CARD_FILE} (sha256 prefix
+// ${CARD_SHA256_PREFIX}) and method/baseline.json.
+// To change it, change those files and run: node method/build-prompt.mjs
+
+export const CARD = ${JSON.stringify(card_, null, 2)} as const;
+
+export const BASELINE = ${JSON.stringify(baseline, null, 2)} as const;
+`;
+
+const outputs = [
+  { path: OUT, name: 'api/_method.js', content: out },
+  { path: APP_OUT, name: 'gwt-app/src/method.generated.ts', content: appOut },
+];
+
 if (process.argv.includes('--check')) {
-  let current = '';
-  try { current = readFileSync(OUT, 'utf8'); } catch { /* missing counts as out of date */ }
-  if (current !== out) {
-    console.error('api/_method.js is out of date. Run: node method/build-prompt.mjs');
-    process.exit(1);
+  let stale = false;
+  for (const o of outputs) {
+    let current = '';
+    try { current = readFileSync(o.path, 'utf8'); } catch { /* missing counts as out of date */ }
+    if (current !== o.content) {
+      console.error(`${o.name} is out of date. Run: node method/build-prompt.mjs`);
+      stale = true;
+    } else {
+      console.log(`${o.name} is up to date.`);
+    }
   }
-  console.log('api/_method.js is up to date.');
+  if (stale) process.exit(1);
 } else {
-  writeFileSync(OUT, out);
-  console.log(`Wrote api/_method.js: prompt ${promptLines.length} lines, ${systemPrompt.length} characters.`);
+  for (const o of outputs) writeFileSync(o.path, o.content);
+  console.log(`Wrote api/_method.js and gwt-app/src/method.generated.ts: prompt ${promptLines.length} lines, ${systemPrompt.length} characters.`);
 }

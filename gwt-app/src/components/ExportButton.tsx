@@ -1,19 +1,13 @@
-import type { WindowStatus } from '../yjsStore';
 import { DOMAINS, getDomainState } from '../yjsStore';
-
-const STATUS_CHAR: Record<WindowStatus, string> = {
-  Opening: '🟢',
-  Holding: '🟡',
-  Narrowing: '🟠',
-  Critical: '🔴',
-  Closed: '⬛',
-};
+import { getSynthesis, localDate, CONTESTED, NO_DATA, CONTEXT_ONLY } from '../synthesis';
+import { BASELINE } from '../method.generated';
 
 export function ExportButton() {
   function handleExport() {
-    const date = new Date().toISOString().slice(0, 10);
+    const date = localDate();
+    const synthesis = getSynthesis();
     const lines: string[] = [
-      `# Governance Window Tracker — Assessment Export`,
+      `# AI Governance Window Tracker — Board Export`,
       `**Date:** ${new Date().toLocaleString()}`,
       `**Format:** Local-First Edition (Y.js / IndexedDB)`,
       '',
@@ -25,9 +19,19 @@ export function ExportButton() {
 
     for (const d of DOMAINS) {
       const s = getDomainState(d.id);
-      const statusChar = STATUS_CHAR[s.status] ?? '○';
-      lines.push(`### ${statusChar} ${d.label}`);
-      lines.push(`**Status:** ${s.status}`);
+      const baseline = BASELINE.domains[d.id];
+      lines.push(`### ${d.label}`);
+      lines.push(`**Q3 record:** ${baseline.status} · trend ${baseline.trend.toLowerCase()}`);
+      if (synthesis) {
+        const runState = synthesis.meta.domain_states[d.id];
+        const direction = synthesis.assessment.domains[d.id]?.direction ?? null;
+        const reading = runState === 'no_data'
+          ? NO_DATA
+          : runState === 'context_only'
+            ? CONTEXT_ONLY
+            : direction === null ? 'No direction yet' : direction === 'contested' ? CONTESTED : d.words[direction];
+        lines.push(`**Last run:** ${reading}`);
+      }
       lines.push(`**Signal:** ${s.signal || '_(none)_'}`);
       lines.push(`**Last updated:** ${s.updatedAt ? new Date(s.updatedAt).toLocaleString() : '—'}`);
       lines.push('');

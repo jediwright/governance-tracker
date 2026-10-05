@@ -1,24 +1,26 @@
 import { useState, useEffect, useId } from 'react';
-import type { DomainId, WindowStatus } from '../yjsStore';
+import type { DomainId } from '../yjsStore';
 import {
   DOMAINS,
   getDomainState,
-  setDomainStatus,
   setDomainSignal,
   observeAll,
 } from '../yjsStore';
 import type { AccessContext } from '../permissions';
 import { canSubmit } from '../permissions';
+import type { DomainDirection } from '../synthesis';
+import { useSynthesis, CONTESTED, NO_DATA, CONTEXT_ONLY } from '../synthesis';
+import { BASELINE } from '../method.generated';
 
-const STATUS_CONFIG: Record<WindowStatus, { dot: string; label: string; ring: string }> = {
-  Opening:   { dot: 'bg-emerald-500',  label: 'Opening',   ring: 'ring-emerald-200' },
-  Holding:   { dot: 'bg-slate-400',    label: 'Holding',   ring: 'ring-[#081225]/20' },
-  Narrowing: { dot: 'bg-orange-400',   label: 'Narrowing', ring: 'ring-orange-200' },
-  Critical:  { dot: 'bg-red-500',      label: 'Critical',  ring: 'ring-red-200' },
-  Closed:    { dot: 'bg-red-900',      label: 'Closed',    ring: 'ring-red-900/30' },
+const DIRECTION_STYLE: Record<DomainDirection, { dot: string; ring: string }> = {
+  opening:   { dot: 'bg-emerald-500', ring: 'ring-emerald-200' },
+  holding:   { dot: 'bg-slate-400',   ring: 'ring-[#081225]/20' },
+  closing:   { dot: 'bg-orange-500',  ring: 'ring-orange-200' },
+  contested: { dot: 'bg-amber-400',   ring: 'ring-amber-200' },
 };
+const NEUTRAL_STYLE = { dot: 'bg-gray-200', ring: 'ring-gray-200' };
 
-const STATUS_ORDER: WindowStatus[] = ['Opening', 'Holding', 'Narrowing', 'Critical', 'Closed'];
+const DIRECTION_ORDER: DomainDirection[] = ['opening', 'holding', 'closing', 'contested'];
 
 function formatClock(ts: number): string {
   if (!ts) return '—';
@@ -48,12 +50,6 @@ function DomainCard({ domainId, label, accessCtx, externalDraft, onDraftChange }
   };
 
   useEffect(() => {
-    const persisted = getDomainState(domainId);
-    setState(persisted);
-    setLocalDraft(persisted.signal);
-  }, [domainId]);
-
-  useEffect(() => {
     const unobserve = observeAll(() => {
       setState(getDomainState(domainId));
     });
@@ -61,8 +57,25 @@ function DomainCard({ domainId, label, accessCtx, externalDraft, onDraftChange }
   }, [domainId]);
 
   const writable = canSubmit(accessCtx);
-  const cfg = STATUS_CONFIG[state.status] ?? { dot: 'bg-gray-200', label: 'Unassessed', ring: 'ring-gray-200' };
   const hasPersistedSignal = !!state.signal;
+
+  // The status row is read-only. Before a run it shows the Q3 record. After a
+  // run it shows this run's reading for the domain, with the Q3 record beside it.
+  const synthesis = useSynthesis();
+  const domain = DOMAINS.find(d => d.id === domainId)!;
+  const baseline = BASELINE.domains[domainId];
+  const runState = synthesis?.meta.domain_states[domainId] ?? null;
+  const direction = runState === 'scored' ? (synthesis?.assessment.domains[domainId]?.direction ?? null) : null;
+  const wordFor = (d: DomainDirection) => (d === 'contested' ? CONTESTED : domain.words[d]);
+  const reading = runState === null
+    ? baseline.status
+    : runState === 'no_data'
+      ? NO_DATA
+      : runState === 'context_only'
+        ? CONTEXT_ONLY
+        : direction ? wordFor(direction) : 'No direction yet';
+  const readingSource = runState === null ? 'Q3 record' : 'This run';
+  const cfg = direction ? DIRECTION_STYLE[direction] : NEUTRAL_STYLE;
 
   function handleSubmit() {
     if (!writable || !draft.trim()) return;
@@ -78,33 +91,50 @@ function DomainCard({ domainId, label, accessCtx, externalDraft, onDraftChange }
         <h3 id={headingId} className="text-sm font-semibold text-gray-800 leading-tight pr-2 font-serif">
           {label}
         </h3>
-        <div className="flex items-center gap-1.5 shrink-0" aria-label={`Status: ${cfg.label}`}>
+        <div className="flex items-center gap-1.5 shrink-0" aria-label={`${readingSource}: ${reading}`}>
           <span className={`w-2.5 h-2.5 rounded-full ${cfg.dot}`} aria-hidden="true" />
-          <span className="text-xs text-gray-500 font-mono">{cfg.label}</span>
+          <span className="text-xs text-gray-500 font-mono">{reading}</span>
         </div>
       </div>
 
-      <div className="mb-3" role="group" aria-label="Set domain status">
-        <label className="text-xs text-gray-400 mb-1 block" id={`${headingId}-status-label`}>Status</label>
-        <div className="flex flex-wrap gap-1" role="radiogroup" aria-labelledby={`${headingId}-status-label`}>
-          {STATUS_ORDER.map(s => (
-            <button
-              key={s}
-              role="radio"
-              aria-checked={state.status === s}
-              disabled={!writable}
-              onClick={() => setDomainStatus(domainId, s)}
-              className={`text-xs px-2 py-0.5 rounded border font-mono transition-colors
-                focus:outline-none focus-visible:ring-2 focus-visible:ring-[#081225] focus-visible:ring-offset-1
-                ${state.status === s
-                  ? `border-transparent ${STATUS_CONFIG[s].dot} text-white`
-                  : 'border-gray-200 text-gray-500 hover:border-gray-300 disabled:opacity-40 disabled:cursor-not-allowed'
+      <div className="mb-3">
+        <div className="text-xs text-gray-400 mb-1" id={`${headingId}-status-label`}>
+          Status <span className="text-gray-300">· set by a synthesis run, not by hand</span>
+        </div>
+        <ul className="flex flex-wrap gap-1" aria-labelledby={`${headingId}-status-label`}>
+          {DIRECTION_ORDER.map(d => (
+            <li
+              key={d}
+              aria-current={direction === d ? 'true' : undefined}
+              className={`text-xs px-2 py-0.5 rounded border font-mono select-none
+                ${direction === d
+                  ? `border-transparent ${DIRECTION_STYLE[d].dot} text-white`
+                  : 'border-gray-200 text-gray-400'
                 }`}
             >
-              {s}
-            </button>
+              {wordFor(d)}
+            </li>
           ))}
-        </div>
+          {(runState === 'no_data' || runState === 'context_only') && (
+            <li aria-current="true" className="text-xs px-2 py-0.5 rounded border border-transparent bg-gray-500 text-white font-mono select-none">
+              {reading}
+            </li>
+          )}
+        </ul>
+        <p className="text-xs text-gray-400 mt-1.5 leading-relaxed">
+          {runState === null && (
+            <>Q3 record: <span className="text-gray-600">{baseline.status}</span> · trend {baseline.trend.toLowerCase()}. Shown in the record's own wording, not re-mapped to the row above.</>
+          )}
+          {runState === 'scored' && (
+            <>{direction ? 'From this run\'s in-window signals.' : 'In-window signals were entered, none at a weight that sets a direction.'} Q3 record: <span className="text-gray-600">{baseline.status}</span> · trend {baseline.trend.toLowerCase()} (not re-mapped).</>
+          )}
+          {runState === 'context_only' && (
+            <>Only signals dated outside Oct 1 – Dec 31, 2026, or undated, were entered. They carry no weight. Q3 record: <span className="text-gray-600">{baseline.status}</span> · trend {baseline.trend.toLowerCase()}.</>
+          )}
+          {runState === 'no_data' && (
+            <>No signal was entered for this domain in the last run. Q3 record: <span className="text-gray-600">{baseline.status}</span> · trend {baseline.trend.toLowerCase()}.</>
+          )}
+        </p>
       </div>
 
       <div className="mb-3">
