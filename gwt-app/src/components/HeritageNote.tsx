@@ -18,16 +18,15 @@ export function HeritageNote() {
       {open && (
         <div className="px-4 py-4 bg-white border-t border-gray-100">
           <blockquote className="text-sm text-gray-600 leading-relaxed border-l-2 border-navy pl-4 italic font-serif">
-            The contributor permission model in this application is derived from{' '}
+            The contributor permission model in this application is modeled on{' '}
             <code className="font-mono text-xs not-italic bg-gray-100 px-1 rounded">mod_infinity.c</code>,
             a custom Apache module written by Adam Wiggins and Orion Henry for InfinityDrive (2003–2006).
-            The original module enforced per-user, per-share, per-operation-type access control at the
-            HTTP protocol layer — distinguishing read, write, and delete as separate permission checks
-            against a PostgreSQL{' '}
+            The original module checked each HTTP request against a PostgreSQL{' '}
             <code className="font-mono text-xs not-italic bg-gray-100 px-1 rounded">share_permissions</code>{' '}
-            table. The trust tier architecture here inherits that model directly. Local-first data ownership,
-            per-contributor scoped write access, and operation-type-aware permission checking: the same
-            architectural convictions, twenty years later.
+            table, per user and per share, and blocked writes for accounts over quota. This app carries
+            the same shape: three tiers, a check per operation type, and a lock that blocks writes. Here
+            it is a demonstration. The visitor chooses the tier, there is no sign-in, and signals are
+            stored in one browser.
           </blockquote>
 
           <div className="mt-4 flex flex-col gap-4 text-xs text-gray-400">
@@ -40,7 +39,6 @@ export function HeritageNote() {
                     ['share contributor (write=true)', 'Domain Contributor'],
                     ['share reader (read-only)', 'Public Reader'],
                     ['over_quota blocks writes', 'Assessment lock'],
-                    ['share_permissions JOIN', 'Credential check'],
                   ].map(([src, dst]) => (
                     <tr key={src} className="border-b border-gray-100 last:border-0">
                       <td className="py-1 pr-4 font-mono text-gray-400 w-1/2">{src}</td>

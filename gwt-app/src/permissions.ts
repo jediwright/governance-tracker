@@ -31,13 +31,13 @@ export const TIERS: Record<TierName, ContributorTier> = {
   primary_assessor: {
     name: 'primary_assessor',
     label: 'Primary Assessor',
-    description: 'Full read/write access to all domains. Equivalent to the account root user in mod_infinity — complete access once authenticated.',
+    description: 'Full read/write access to all domains. Equivalent to the account root user in mod_infinity. This app has no sign-in: the visitor chooses the tier.',
     permissions: { read: true, write: true, delete: true },
   },
   domain_contributor: {
     name: 'domain_contributor',
     label: 'Domain Contributor',
-    description: 'Write access scoped to assigned domains. Mirrors share_permissions.write=true — can submit signals, cannot delete.',
+    description: 'Write access to all domains. Mirrors share_permissions.write=true — can submit signals. Clearing a signal counts as a write.',
     permissions: { read: true, write: true, delete: false },
   },
   public_reader: {
